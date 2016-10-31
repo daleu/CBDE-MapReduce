@@ -101,7 +101,7 @@ public class GroupBy extends Configured implements Tool {
         HTableDescriptor htdOutput = new HTableDescriptor(outputTable.getBytes());
         //Add columns to the new table
 
-        htdOutput.addFamily(new HColumnDescriptor(familyColumn[0]));
+        htdOutput.addFamily(new HColumnDescriptor(args[3]));
 
         // If you want to insert data do it here
         // -- Inserts
@@ -124,7 +124,7 @@ public class GroupBy extends Configured implements Tool {
         //Create an scan object
         Scan scan = new Scan();
         //Set the columns to scan and keep header to project
-        String header = args[2]+','+args[3];
+        String header = args[3]+','+args[2];
         job.getConfiguration().setStrings("attributes",header);
         //Set the Map and Reduce function
         TableMapReduceUtil.initTableMapperJob(inputTable, scan, Mapper.class, Text.class, Text.class, job);
@@ -144,31 +144,31 @@ public class GroupBy extends Configured implements Tool {
             String[] attributes = context.getConfiguration().getStrings("attributes","empty");
 
             String[] firstFamilyColumn = new String[2];
-            if (!attributes[0].contains(":")){
+            if (!attributes[0].contains(",")){
                 //If only the column name is provided, it is assumed that both family and column names are the same
                 firstFamilyColumn[0] =  attributes[0];
                 firstFamilyColumn[1] =  attributes[0];
             }
             else {
-                firstFamilyColumn = attributes[0].split(":");
+                firstFamilyColumn = attributes[0].split(",");
             }
             tuple = new String(values.getValue(firstFamilyColumn[0].getBytes(),firstFamilyColumn[1].getBytes()));
 
-            for (int i=1;i<attributes.length;i++) {
+            /*for (int i=1;i<attributes.length;i++) {
 
                 String[] familyColumn = new String[2];
-                if (!attributes[i].contains(":")){
+                if (!attributes[i].contains(",")){
                     //If only the column name is provided, it is assumed that both family and column names are the same
                     familyColumn[0] =  attributes[i];
                     familyColumn[1] =  attributes[i];
                 }
                 else {
                     //Otherwise, we extract family and column names from the provided argument "family:column"
-                    familyColumn = attributes[i].split(":");
+                    familyColumn = attributes[i].split(",");
                 }
 
                 tuple = tuple+";"+ new String(values.getValue(familyColumn[0].getBytes(),familyColumn[1].getBytes()));
-            }
+            }*/
 
             context.write(new Text(tuple), new Text(rowId));
         }
@@ -187,17 +187,17 @@ public class GroupBy extends Configured implements Tool {
             String[] values = key.toString().split(";");
             for (int i=0;i<attributes.length;i++) {
                 String[] familyColumn = new String[2];
-                if (!attributes[i].contains(":")){
+                if (!attributes[i].contains(",")){
                     //If only the column name is provided, it is assumed that both family and column names are the same
                     familyColumn[0] =  attributes[i];
                     familyColumn[1] =  attributes[i];
                 }
                 else {
                     //Otherwise, we extract family and column names from the provided argument "family:column"
-                    familyColumn = attributes[i].split(":");
+                    familyColumn = attributes[i].split(",");
                 }
-
-                put.add(familyColumn[0].getBytes(), familyColumn[1].getBytes(), values[i].getBytes());
+                String col = "sum";
+                put.add(col.getBytes(),col.getBytes(),values[i].getBytes());
             }
             // Put the tuple in the output table
             context.write(outputKey, put);
