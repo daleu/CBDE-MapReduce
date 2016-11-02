@@ -1,0 +1,6 @@
+##IMPORTANT: replace username in table name with your username
+create 'equipAG1', 'a', 'b'
+put 'equipAG1', 'key1', 'a:a', '1'
+put 'equipAG1', 'key1', 'b:b', '2'
+put 'equipAG1', 'key2', 'a:a', '3'
+put 'equipAG1', 'key2', 'b:b', '4'
