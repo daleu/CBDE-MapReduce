@@ -24,8 +24,8 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Reducer.Context;
 
 public class GroupBy extends Configured implements Tool {
-    private static String inputTable;
-    private static String outputTable;
+       private static String inputTable;
+       private static String outputTable;
 
 
 
@@ -62,139 +62,176 @@ public class GroupBy extends Configured implements Tool {
 
        */
 
-    public static void main(String[] args) throws Exception {
-        if (args.length<4) {
-            System.err.println("Parameters missing: 'inputTable outputTable aggregateAttribute groupByAttribute'");
-            System.exit(1);
-        }
-        inputTable = args[0];
-        outputTable = args[1];
+       public static void main(String[] args) throws Exception {
+         if (args.length<4) {
+           System.err.println("Parameters missing: 'inputTable outputTable aggregate[family:]attribute groupby[family:]attribute*'");
+		   System.exit(1);
+         }
+         inputTable = args[0];
+         outputTable = args[1];
 
-        int tablesRight = checkIOTables(args);
-        if (tablesRight==0) {
-            int ret = ToolRunner.run(new GroupBy(), args);
-            System.exit(ret);
-        } else {
-            System.exit(tablesRight);
-        }
-    }
-
-
-    //============================================================== checkTables
-    private static int checkIOTables(String [] args) throws Exception {
-        // Obtain HBase's configuration
-        Configuration config = HBaseConfiguration.create();
-        // Create an HBase administrator
-        HBaseAdmin hba = new HBaseAdmin(config);
-
-        // With an HBase administrator we check if the input table exists
-        if (!hba.tableExists(inputTable)) {
-            System.err.println("Input table does not exist");
-            return 2;
-        }
-        // Check if the output table exists
-        if (hba.tableExists(outputTable)) {
-            System.err.println("Output table already exists");
-            return 3;
-        }
-        // Create the columns of the output table
-        HTableDescriptor htdOutput = new HTableDescriptor(outputTable.getBytes());
-        //Add columns to the new table
-
-        htdOutput.addFamily(new HColumnDescriptor(args[3]));
-
-        // If you want to insert data do it here
-        // -- Inserts
-        // -- Inserts
-        //Create the new output table
-        hba.createTable(htdOutput);
-        return 0;
-    }
-
-    //============================================================== Job config
-    public int run(String [] args) throws Exception {
-        //Create a new job to execute
-
-        //Retrive the configuration
-        Job job = new Job(HBaseConfiguration.create());
-        //Set the MapReduce class
-        job.setJarByClass(GroupBy.class);
-        //Set the job name
-        job.setJobName("GroupBy");
-        //Create an scan object
-        Scan scan = new Scan();
-        //Set the columns to scan and keep header to project
-        String header = args[3]+','+args[2];
-        job.getConfiguration().setStrings("attributes",header);
-        //Set the Map and Reduce function
-        TableMapReduceUtil.initTableMapperJob(inputTable, scan, Mapper.class, Text.class, Text.class, job);
-        TableMapReduceUtil.initTableReducerJob(outputTable, Reducer.class, job);
-
-        boolean success = job.waitForCompletion(true);
-        return success ? 0 : 4;
-    }
+         int tablesRight = checkIOTables(args);
+         if (tablesRight==0) {
+           int ret = ToolRunner.run(new GroupBy(), args);
+           System.exit(ret);
+         } else {
+           System.exit(tablesRight);
+         }
+       }
 
 
-    //=================================================================== Mapper
-    public static class Mapper extends TableMapper<Text, Text> {
+//============================================================== checkTables
+       private static int checkIOTables(String [] args) throws Exception {
+         // Obtain HBase's configuration
+         Configuration config = HBaseConfiguration.create();
+         // Create an HBase administrator
+         HBaseAdmin hba = new HBaseAdmin(config);
 
-        public void map(ImmutableBytesWritable rowMetadata, Result values, Context context) throws IOException, InterruptedException {
-            String tuple = "";
+         // With an HBase administrator we check if the input table exists
+         if (!hba.tableExists(inputTable)) {
+           System.err.println("Input table does not exist");
+		   return 2;
+         }
+         // Check if the output table exists
+         if (hba.tableExists(outputTable)) {
+           System.err.println("Output table already exists");
+		   return 3;
+         }
+         // Create the columns of the output table
+         HTableDescriptor htdOutput = new HTableDescriptor(outputTable.getBytes());
+         //Add columns to the new table
+        /* for(int i=2;i<args.length;i++) {
+		   String[] familyColumn = new String[2];
 
-            String[] attributes = context.getConfiguration().getStrings("attributes","empty");
+		   if (!args[i].contains(":")){
+			 //If only the column name is provided, it is assumed that both family and column names are the same
+			 System.out.println("Only column name is provided! Assuming that the family and column names are the same!");
+			 familyColumn[0] =  args[i];
+			 familyColumn[1] =  args[i];
+		   }
+		   else {
+		     //Otherwise, we extract family and column names from the provided argument "family:column"
+			 familyColumn = args[i].split(":");
+		   }
 
-            String[] firstFamilyColumn = new String[2];
-            firstFamilyColumn[0] =  attributes[0];
-            firstFamilyColumn[1] =  attributes[0];
-            /*if (!attributes[0].contains(",")){
-                //If only the column name is provided, it is assumed that both family and column names are the same
-                firstFamilyColumn[0] =  attributes[0];
-                firstFamilyColumn[1] =  attributes[0];
-            }
-            else {
-                firstFamilyColumn = attributes[0].split(",");
-            }
-            tuple = new String(values.getValue(firstFamilyColumn[0].getBytes(),firstFamilyColumn[1].getBytes()));
+           htdOutput.addFamily(new HColumnDescriptor(familyColumn[0]));
+         }*/
+         String[] familyColumn = new String[2];
+         familyColumn = args[2].split(":");
+         htdOutput.addFamily(new HColumnDescriptor(familyColumn[0]));
 
-            for (int i=1;i<attributes.length;i++) {
+           // If you want to insert data do it here
+         // -- Inserts
+         // -- Inserts
+         //Create the new output table
+         hba.createTable(htdOutput);
+         return 0;
+         }
 
-                String[] familyColumn = new String[2];
-                if (!attributes[i].contains(",")){
-                    //If only the column name is provided, it is assumed that both family and column names are the same
-                    familyColumn[0] =  attributes[i];
-                    familyColumn[1] =  attributes[i];
-                }
-                else {
-                    //Otherwise, we extract family and column names from the provided argument "family:column"
-                    familyColumn = attributes[i].split(",");
-                }
+//============================================================== Job config
+       public int run(String [] args) throws Exception {
+         //Create a new job to execute
 
-                tuple = tuple+";"+ new String(values.getValue(familyColumn[0].getBytes(),familyColumn[1].getBytes()));
-            }*/
+         //Retrive the configuration
+         Job job = new Job(HBaseConfiguration.create());
+         //Set the MapReduce class
+         job.setJarByClass(GroupBy.class);
+         //Set the job name
+         job.setJobName("GroupBy");
+         //Create an scan object
+         Scan scan = new Scan();
+         //Set the columns to scan and keep header to project
+         //String header = "";
+         /*for(int i=2;i<args.length;i++) {
+             String[] familyColumn = new String[2];
+             if (!args[i].contains(":")) {
+                 //If only the column name is provided, it is assumed that both family and column names are the same
+                 familyColumn[0] = args[i];
+                 familyColumn[1] = args[i];
+             } else {
+                 //Otherwise, we extract family and column names from the provided argument "family:column"
+                 familyColumn = args[i].split(":");
+             }
 
-            context.write(new Text(firstFamilyColumn[0]), new Text(firstFamilyColumn[1]));
-        }
-    }
+             scan.addColumn(familyColumn[0].getBytes(), familyColumn[1].getBytes());
+             header = header + "," + args[i];
+         }*/
 
-    //================================================================== Reducer
-    public static class Reducer extends TableReducer<Text, Text, Text> {
+           String header = args[3]+','+args[2];
+         job.getConfiguration().setStrings("attributes",header);
+         //Set the Map and Reduce function
+         TableMapReduceUtil.initTableMapperJob(inputTable, scan, Mapper.class, Text.class, Text.class, job);
+         TableMapReduceUtil.initTableReducerJob(outputTable, Reducer.class, job);
 
-        public void reduce(Text key, Iterable<Text> inputList, Context context) throws IOException, InterruptedException {
+         boolean success = job.waitForCompletion(true);
+         return success ? 0 : 4;
+       }
 
-            String[] attributes = context.getConfiguration().getStrings("attributes","empty");
 
-            int suma = 0;
-            while(inputList.iterator().hasNext()){
-                Text valueArray = inputList.iterator().next();
-                suma = suma + Integer.parseInt(valueArray.toString());
-            }
+//=================================================================== Mapper
+       public static class Mapper extends TableMapper<Text, Text> {
 
-            String tuple = attributes[0]+':'+key;
+         public void map(ImmutableBytesWritable rowMetadata, Result values, Context context) throws IOException, InterruptedException {
+           //String tuple = "";
+           //String rowId = new String(rowMetadata.get(), "US-ASCII");
+           String[] attributes = context.getConfiguration().getStrings("attributes","empty");
 
-            // Create a tuple for the output table
-            Put put = new Put(tuple.getBytes());
-            put.add(attributes[1].getBytes(),attributes[1].getBytes(),Integer.toString(suma).getBytes());
-            //Set the values for the columns
+             String[] aggregate=attributes[0].split(":");
+             String[] groupby=attributes[1].split(":");
+
+             String value = new String(values.getValue(aggregate[0].getBytes(),aggregate[1].getBytes()));
+             String key = new String(values.getValue(groupby[0].getBytes(),groupby[1].getBytes()));
+		   /*String[] firstFamilyColumn = new String[2];
+		   if (!attributes[0].contains(":")){
+		     //If only the column name is provided, it is assumed that both family and column names are the same
+			 firstFamilyColumn[0] =  attributes[0];
+			 firstFamilyColumn[1] =  attributes[0];
+		   }
+		   else {
+			 firstFamilyColumn = attributes[0].split(":");
+		   }
+           tuple = new String(values.getValue(firstFamilyColumn[0].getBytes(),firstFamilyColumn[1].getBytes()));
+
+           for (int i=1;i<attributes.length;i++) {
+
+   		     String[] familyColumn = new String[2];
+			 if (!attributes[i].contains(":")){
+			    //If only the column name is provided, it is assumed that both family and column names are the same
+				familyColumn[0] =  attributes[i];
+				familyColumn[1] =  attributes[i];
+			 }
+			 else {
+			    //Otherwise, we extract family and column names from the provided argument "family:column"
+				familyColumn = attributes[i].split(":");
+			 }
+
+             tuple = tuple+";"+ new String(values.getValue(familyColumn[0].getBytes(),familyColumn[1].getBytes()));
+           }*/
+
+           context.write(new Text(key), new Text(value));
+         }
+       }
+
+//================================================================== Reducer
+       public static class Reducer extends TableReducer<Text, Text, Text> {
+
+          public void reduce(Text key, Iterable<Text> inputList, Context context) throws IOException, InterruptedException {
+              String[] attributes = context.getConfiguration().getStrings("attributes","empty");
+
+              String fam = attributes[1].split(":")[0];
+              String attr = attributes[1].split(":")[1];
+
+              int suma = 0;
+              while(inputList.iterator().hasNext()){
+                  Text valueArray = inputList.iterator().next();
+                  suma = suma + Integer.parseInt(valueArray.toString());
+              }
+
+
+              // Create a tuple for the output table
+              Put put = new Put(key.getBytes());
+              put.add(fam.getBytes(),attr.getBytes(),Integer.toString(suma).getBytes());
+              //Set the values for the columns
            /* for (int i=0;i<attributes.length;i++) {
                 String[] familyColumn = new String[2];
                 if (!attributes[i].contains(",")){
@@ -209,9 +246,10 @@ public class GroupBy extends Configured implements Tool {
                 String col = "sum";
                 put.add(col.getBytes(),col.getBytes(),values[i].getBytes());
             }*/
-            // Put the tuple in the output table
-            context.write(tuple, put);
-        }
+              // Put the tuple in the output table
+              context.write(new Text(key), put);
+         }
+
+       }
     }
-}
 
