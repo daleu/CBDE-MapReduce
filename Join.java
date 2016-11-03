@@ -31,12 +31,14 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Reducer.Context;
 
-public class CartesianProduct extends Configured implements Tool {
+public class Join extends Configured implements Tool {
 
     // These are three global variables, which coincide with the three parameters in the call
     public static String inputTable1;
     public static String inputTable2;
     private static String outputTable;
+    private static String attributT1;
+    private static String attributT2;
 
 
 //=================================================================== Main
@@ -69,19 +71,21 @@ public class CartesianProduct extends Configured implements Tool {
        */
 
     public static void main(String[] args) throws Exception {
-        if (args.length<4) {
-            System.err.println("Parameters missing: 'inputTableEXT inputTableINT outputTable hashValue'");
+        if (args.length<6) {
+            System.err.println("Parameters missing: 'inputTableEXT inputTableINT outputTable valueT1 valueT2 hashValue'");
             System.exit(1);
         }
         inputTable1 = args[0];
         inputTable2 = args[1];
         outputTable = args[2];
+        attributT1 = args[3];
+        attributT2 = args[4];
 
 
 
         int tablesRight = checkIOTables(args);
         if (tablesRight==0) {
-            int ret = ToolRunner.run(new CartesianProduct(), args);
+            int ret = ToolRunner.run(new Join(), args);
             System.exit(ret);
         } else {
             System.exit(tablesRight);
@@ -162,15 +166,17 @@ public class CartesianProduct extends Configured implements Tool {
         //Create a new MapReduce configuration object.
         Job job = new Job(HBaseConfiguration.create());
         //Set the MapReduce class
-        job.setJarByClass(CartesianProduct.class);
+        job.setJarByClass(Join.class);
         //Set the job name
-        job.setJobName("CartesianProduct");
+        job.setJobName("Join");
         // To pass parameters to the mapper and reducer we must use the setStrings of the Configuration object
         // We pass the names of two input tables as External and Internal tables of the Cartesian product, and a hash random value.
         job.getConfiguration().setStrings("External", inputTable1);
         job.getConfiguration().setStrings("Internal", inputTable2);
-        job.getConfiguration().setInt("Hash", Integer.parseInt(args[3]));
-        System.out.println("Hash = " + args[3]);
+        job.getConfiguration().setStrings("externalAttribute", args[3]);
+        job.getConfiguration().setStrings("internalAttribute", args[4]);
+        job.getConfiguration().setInt("Hash", Integer.parseInt(args[5]));
+        System.out.println("Hash = " + args[5]);
 
          /* Set the Map and Reduce function:
             These are special mapper and reducers, which are prepared to read and store data on HBase tables
@@ -222,6 +228,7 @@ public class CartesianProduct extends Configured implements Tool {
             String[] external = context.getConfiguration().getStrings("External", "Default");
             String[] internal = context.getConfiguration().getStrings("Internal", "Default");
 
+
             // From the context object we obtain the input TableSplit this row belongs to
             TableSplit currentSplit = (TableSplit)context.getInputSplit();
 
@@ -270,6 +277,8 @@ public class CartesianProduct extends Configured implements Tool {
             String outputKey;
             String[] external = context.getConfiguration().getStrings("External","Default");
             String[] internal = context.getConfiguration().getStrings("Internal","Default");
+            String[] externalAttribute = context.getConfiguration().getStrings("externalAttribute", "Default");
+            String[] internalAttribute = context.getConfiguration().getStrings("internalAttribute", "Default");
             String[] eAttributes, iAttributes;
             String[] attribute_value;
 
@@ -298,17 +307,21 @@ public class CartesianProduct extends Configured implements Tool {
                             // Create a tuple for the output table
                             put = new Put(outputKey.getBytes());
                             //Set the values for the columns of the external table
+                            String valT1 = null;
+                            String valT2 = null;
                             for (k=1;k<eAttributes.length;k++) {
                                 attribute_value = eAttributes[k].split(":");
+                                if(attribute_value[1].equals(externalAttribute[0])) valT1 = attribute_value[2];
                                 put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
                             }
                             //Set the values for the columns of the internal table
                             for (k=1;k<iAttributes.length;k++) {
                                 attribute_value = iAttributes[k].split(":");
+                                if(attribute_value[1].equals(internalAttribute[0])) valT2 = attribute_value[2];
                                 put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
                             }
                             // Put the tuple in the output table through the context object
-                            context.write(new Text(outputKey), put);
+                            if(valT1!=null && valT2!=null && valT1.equals(valT2)) context.write(new Text(outputKey), put);
                         }
                     }
                 }
